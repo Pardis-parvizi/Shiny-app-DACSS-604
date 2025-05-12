@@ -1,0 +1,108 @@
+---
+title: "Fracture and Activity Analysis"
+format: html
+server: shiny
+---
+
+```{r setup, include=FALSE}
+library(shiny)
+library(ggplot2)
+library(dplyr)
+
+
+steps_fracture <- read.csv("steps_fracture.csv")
+```
+
+## Shiny App: Fracture and Activity Analysis
+
+
+```{r shiny-app}
+#| context: shiny
+shinyApp(
+  ui = fluidPage(
+    titlePanel("Fracture and Activity Analysis"),
+    
+    h3("Barplot: Fractures by Steps Quartile"),
+    p("This barplot shows the proportion of individuals over 50 with fractures, grouped by steps quartile, with an interactive gender filter."),
+    selectInput("gender_filter", "Select Gender:",
+                choices = c("All" = "All", "Male" = "1", "Female" = "2")),
+    plotOutput("barplot"),
+    
+    h3("Scatterplot: Steps vs. Age"),
+    p("This scatterplot displays daily steps against age, with a trend line and an interactive slider to adjust point size."),
+    sliderInput("point_size", "Point Size:",
+                min = 1, max = 5, value = 2, step = 0.5),
+    plotOutput("scatterplot"),
+    
+    h3("Density Plot: BMI Distribution by Guideline Status and Gender"),
+    p("This density plot shows the distribution of BMI, colored by whether step guidelines(8000 steps/day) were met, faceted by gender, with an interactive bandwidth adjustment."),
+    sliderInput("bw_adjust", "Bandwidth Adjustment:",
+                min = 0.5, max = 2, value = 1, step = 0.1),
+    plotOutput("densityplot")
+  ),
+  
+  server = function(input, output, session) {
+    output$barplot <- renderPlot({
+      
+      data <- steps_fracture
+      
+     
+      if (input$gender_filter != "All") {
+        data <- data %>% filter(gender == input$gender_filter)
+      }
+      
+     
+      data <- data %>% filter(!is.na(steps_quartile), !is.na(fracture_over50))
+      
+    
+      ggplot(data, aes(x = steps_quartile, fill = factor(fracture_over50))) +
+        geom_bar(position = "fill") +
+        scale_fill_manual(values = c("0" = "skyblue", "1" = "coral"), 
+                         labels = c("No Fracture", "Fracture")) +
+        labs(title = "Proportion of Fractures by Steps Quartile",
+             x = "Steps Quartile",
+             y = "Proportion",
+             fill = "Fracture Status") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    })
+    
+    output$scatterplot <- renderPlot({
+   
+      data <- steps_fracture
+      
+
+      data <- data %>% filter(!is.na(steps), !is.na(age))
+      
+  
+      ggplot(data, aes(x = age, y = steps)) +
+        geom_point(size = input$point_size, alpha = 0.6, color = "darkgreen") +
+        geom_smooth(method = "lm", color = "blue", se = FALSE) +
+        labs(title = "Daily Steps vs. Age",
+             x = "Age (years)",
+             y = "Daily Steps") +
+        theme_minimal()
+    })
+    
+    output$densityplot <- renderPlot({
+ 
+      data <- steps_fracture
+      
+
+      data <- data %>% filter(!is.na(bmi), !is.na(step_guideline2), !is.na(gender))
+      
+
+      ggplot(data, aes(x = bmi, fill = factor(step_guideline2))) +
+        geom_density(alpha = 0.5, adjust = input$bw_adjust) +
+        scale_fill_manual(values = c("0" = "purple", "1" = "orange"),
+                         labels = c("Did Not Meet Guidelines", "Met Guidelines")) +
+        facet_wrap(~gender, labeller = labeller(gender = c("1" = "Male", "2" = "Female"))) +
+        labs(title = "BMI Distribution by Step Guideline Status and Gender",
+             x = "BMI",
+             y = "Density",
+             fill = "Guideline Status") +
+        theme_minimal()
+    })
+  }
+)
+```
